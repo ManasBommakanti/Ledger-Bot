@@ -3,7 +3,6 @@ from discord.ext import commands
 from discord.commands import Option
 
 import json
-import asyncio
 import os
 
 description = """
