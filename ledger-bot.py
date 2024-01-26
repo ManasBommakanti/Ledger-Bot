@@ -3,7 +3,11 @@ from discord.ext import commands
 from discord.commands import Option
 
 import json
+import io
 import os
+import asyncio
+
+import matplotlib.pyplot as plt
 
 description = """
     Bot to store poker ledgers for poker game nights.
@@ -18,6 +22,8 @@ intents.message_content = True
 bot = discord.Bot()
 ledger = discord.SlashCommandGroup("ledger", "ledger command group")
 client = discord.Client()
+
+lock = asyncio.Lock()
 
 """
 HELPER FUNCTIONS
@@ -40,41 +46,65 @@ async def get_username(ctx, member: discord.Member) -> str:
 
 # Gets the latest data from Ledger System
 async def get_player_data(ctx) -> dict:
-    # Load existing data from the ledger.json file
-    try:
-        with open("secrets/ledger.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        # If the file doesn't exist, initialize data as an empty dictionary
-        data = {}
-        print("Cannot find secrets/ledger.json")
-    except Exception as e:
-        print(e)
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Something is wrong internally :(",
-            color=discord.Colour.red(),
-        )
-        return await ctx.respond(embed=embed)
+    async with lock:
+        # Load existing data from the ledger.json file
+        try:
+            with open("secrets/ledger.json", "r") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            # If the file doesn't exist, initialize data as an empty dictionary
+            data = {}
+            print("Cannot find secrets/ledger.json")
+        except Exception as e:
+            print(e)
+            embed = discord.Embed(
+                title="Error!",
+                description=f"Something is wrong internally :(",
+                color=discord.Colour.red(),
+            )
+            return await ctx.respond(embed=embed)
 
-    return data["players"]
+        return data["players"]
 
 
 # Update data of Ledger System
 async def update_player_data(ctx, data: dict):
     print(data)
-    # Save the updated data back to the ledger.json file
-    try:
-        with open("secrets/ledger.json", "w") as f:
-            json.dump({"players": data}, f, indent=4)
-    except Exception as e:
-        print(e)
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Something is wrong internally :(",
-            color=discord.Colour.red(),
-        )
-        return await ctx.respond(embed=embed)
+
+    async with lock:
+        # Save the updated data back to the ledger.json file
+        try:
+            with open("secrets/ledger.json", "w") as f:
+                json.dump({"players": data}, f, indent=4)
+        except Exception as e:
+            print(e)
+            embed = discord.Embed(
+                title="Error!",
+                description=f"Something is wrong internally :(",
+                color=discord.Colour.red(),
+            )
+            return await ctx.respond(embed=embed)
+
+
+# Function to create a bank balance graph for a specific player
+async def create_player_bank_graph(username: str, bank_history):
+    fig, ax = plt.subplots()
+    ax.plot(bank_history, label=username)
+
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Bank Balance")
+    ax.set_title(f"{username}'s Bank Balance History")
+    ax.legend()
+
+    # Save the plot to a BytesIO object
+    image_stream = io.BytesIO()
+    plt.savefig(image_stream, format="png")
+    image_stream.seek(0)
+
+    # Clear the plot for the next use
+    plt.clf()
+
+    return image_stream
 
 
 """
@@ -108,6 +138,7 @@ async def addplayer(ctx, member: discord.Member = None):
     data[name] = {
         "name": name,
         "bank": 800,
+        "bank_history": [800],
         "hands_won": 0,
         "hands_lost": 0,
         "folds": 0,
@@ -119,6 +150,44 @@ async def addplayer(ctx, member: discord.Member = None):
         title="Player Added!",
         description=f"Welcome **{name}**!",
         color=discord.Colour.dark_green(),
+    )
+
+    await ctx.respond(embed=embed)
+
+
+# TODO: Implement updating bank amount
+@ledger.command(name="updatebank", description="Update bank amount")
+async def updatebank(ctx, change: int, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_player_data(ctx)
+
+    # Check if the player with the given name already exists
+    if name not in data:
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player with username **{name}** is not in Ledger System.",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
+
+    color = discord.Colour.green()
+    if change < 0:
+        color = discord.Colour.red()
+
+    new_amount = data[name]["bank"] + change
+
+    data[name]["bank"] = new_amount
+    data[name]["bank_history"].append(new_amount)
+
+    await update_player_data(ctx, data)
+
+    embed = discord.Embed(
+        title=f"Updating Bank Account",
+        description=(
+            f"Updated Player **{name}'s** bank account!\n"
+            f"Bank Account Total: ${new_amount}\n"
+        ),
+        colour=color,
     )
 
     await ctx.respond(embed=embed)
@@ -385,7 +454,18 @@ async def individ_stats(ctx, member: discord.Member = None):
         colour=discord.Colour.blue(),
     )
 
-    await ctx.respond(embed=embed)
+    try:
+        # Create the bank balance graph for the specified player
+        image_stream = await create_player_bank_graph(name, user_stats["bank_history"])
+
+        # Send the graph to Discord
+        file = discord.File(image_stream, filename=f"{name}_bank_graph.png")
+        # await ctx.respond(file=file)
+
+    except ValueError as e:
+        await ctx.respond(str(e))
+
+    await ctx.respond(file=file, embed=embed)
 
 
 @ledger.command(name="leaderboard", description="Current Poker Leaderboard")
@@ -408,7 +488,7 @@ async def leaderboard(ctx):
         message += f"""{rank}. **{username}**
             Hands Won: {data[username]['hands_won']}
             Hands Lost: {data[username]['hands_lost']}
-            W/L Ratio: {ratio}\n"""
+            W/L Ratio: {round(ratio, 2)}\n"""
 
     embed = discord.Embed(
         title="Leaderboard",
