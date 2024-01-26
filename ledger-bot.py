@@ -39,7 +39,7 @@ async def get_username(ctx, member: discord.Member) -> str:
 
 
 # Gets the latest data from Ledger System
-async def get_data(ctx) -> dict:
+async def get_player_data(ctx) -> dict:
     # Load existing data from the ledger.json file
     try:
         with open("secrets/ledger.json", "r") as f:
@@ -57,15 +57,16 @@ async def get_data(ctx) -> dict:
         )
         return await ctx.respond(embed=embed)
 
-    return data
+    return data["players"]
 
 
 # Update data of Ledger System
-async def update_data(ctx, data: dict):
+async def update_player_data(ctx, data: dict):
+    print(data)
     # Save the updated data back to the ledger.json file
     try:
         with open("secrets/ledger.json", "w") as f:
-            json.dump(data, f, indent=4)
+            json.dump({"players": data}, f, indent=4)
     except Exception as e:
         print(e)
         embed = discord.Embed(
@@ -92,7 +93,7 @@ async def on_ready():
 )
 async def addplayer(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
-    data = await get_data(ctx)
+    data = await get_player_data(ctx)
 
     # Check if the player with the given name already exists
     if name in data:
@@ -112,7 +113,7 @@ async def addplayer(ctx, member: discord.Member = None):
         "folds": 0,
     }
 
-    await update_data(ctx, data)
+    await update_player_data(ctx, data)
 
     embed = discord.Embed(
         title="Player Added!",
@@ -128,7 +129,7 @@ async def addplayer(ctx, member: discord.Member = None):
 )
 async def individ_stats(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
-    data = await get_data(ctx)
+    data = await get_player_data(ctx)
 
     # Check if the player with the given name does not exist
     if name not in data:
@@ -160,7 +161,7 @@ async def individ_stats(ctx, member: discord.Member = None):
 @ledger.command(name="addwin", description="Add a win to yourself or another player")
 async def addwin(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
-    data = await get_data(ctx)
+    data = await get_player_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
@@ -174,7 +175,7 @@ async def addwin(ctx, member: discord.Member = None):
     update_wins = data[name]["hands_won"] + 1
     data[name]["hands_won"] = update_wins
 
-    await update_data(ctx, data)
+    await update_player_data(ctx, data)
 
     embed = discord.Embed(
         title=f"Updating Win",
@@ -192,7 +193,7 @@ async def addwin(ctx, member: discord.Member = None):
 )
 async def removewin(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
-    data = await get_data(ctx)
+    data = await get_player_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
@@ -216,7 +217,7 @@ async def removewin(ctx, member: discord.Member = None):
     update_wins = data[name]["hands_won"] - 1
     data[name]["hands_won"] = update_wins
 
-    await update_data(ctx, data)
+    await update_player_data(ctx, data)
 
     embed = discord.Embed(
         title=f"Updating Win",
@@ -233,7 +234,7 @@ async def removewin(ctx, member: discord.Member = None):
 @ledger.command(name="addloss", description="Add a loss to yourself or another player")
 async def addloss(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
-    data = await get_data(ctx)
+    data = await get_player_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
@@ -247,7 +248,7 @@ async def addloss(ctx, member: discord.Member = None):
     update_loss = data[name]["hands_lost"] + 1
     data[name]["hands_lost"] = update_loss
 
-    await update_data(ctx, data)
+    await update_player_data(ctx, data)
 
     embed = discord.Embed(
         title=f"Updating Loss",
@@ -266,7 +267,7 @@ async def addloss(ctx, member: discord.Member = None):
 )
 async def removeloss(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
-    data = await get_data(ctx)
+    data = await get_player_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
@@ -292,7 +293,7 @@ async def removeloss(ctx, member: discord.Member = None):
     update_loss = data[name]["hands_lost"] - 1
     data[name]["hands_lost"] = update_loss
 
-    await update_data(ctx, data)
+    await update_player_data(ctx, data)
 
     embed = discord.Embed(
         title=f"Updating Loss",
@@ -309,7 +310,7 @@ async def removeloss(ctx, member: discord.Member = None):
 @ledger.command(name="addfold", description="Add a fold to yourself or another player")
 async def addfold(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
-    data = await get_data(ctx)
+    data = await get_player_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
@@ -323,7 +324,7 @@ async def addfold(ctx, member: discord.Member = None):
     update_folds = data[name]["folds"] + 1
     data[name]["folds"] = update_folds
 
-    await update_data(ctx, data)
+    await update_player_data(ctx, data)
 
     embed = discord.Embed(
         title=f"Updating Folds",
@@ -342,7 +343,7 @@ async def addfold(ctx, member: discord.Member = None):
 )
 async def removefold(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
-    data = await get_data(ctx)
+    data = await get_player_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
@@ -368,7 +369,7 @@ async def removefold(ctx, member: discord.Member = None):
     update_folds = data[name]["folds"] - 1
     data[name]["folds"] = update_folds
 
-    await update_data(ctx, data)
+    await update_player_data(ctx, data)
 
     embed = discord.Embed(
         title=f"Updating Folds",
@@ -382,6 +383,18 @@ async def removefold(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
+def setup_ledger():
+    try:
+        with open("secrets/ledger.json", "w") as f:
+            json.dump({"players": {}}, f, indent=4)
+    except Exception as e:
+        print(e)
+
+    print("INITIALIZED FILE")
+
+
 if __name__ == "__main__":
+    setup_ledger()
+
     bot.add_application_command(ledger)
     bot.run(secrets["TOKEN"])
