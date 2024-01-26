@@ -491,17 +491,32 @@ async def individ_stats(ctx, member: discord.Member = None):
 
 
 @ledger.command(name="leaderboard", description="Current Poker Leaderboard")
-async def leaderboard(ctx):
+async def leaderboard(ctx, criterion: str = "bank"):
     data = await get_player_data(ctx)
 
-    # Calculate ratios and create a list of players with usernames and ratios
-    player_ratios = [
-        (username, player["hands_won"] / max(1, player["hands_lost"]))
-        for username, player in data.items()
-    ]
+    sorted_players = []
 
-    # Sort the list based on ratios in descending order
-    sorted_players = sorted(player_ratios, key=lambda x: x[1], reverse=True)
+    if criterion == "bank":
+        player_bank = [(username, player["bank"]) for username, player in data.items()]
+
+        # Sort the list based on ratios in descending order
+        sorted_players = sorted(player_bank, key=lambda x: x[1], reverse=True)
+    elif criterion == "ratio":
+        # Calculate ratios and create a list of players with usernames and ratios
+        player_ratios = [
+            (username, player["hands_won"] / max(1, player["hands_lost"]))
+            for username, player in data.items()
+        ]
+
+        # Sort the list based on ratios in descending order
+        sorted_players = sorted(player_ratios, key=lambda x: x[1], reverse=True)
+    else:
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Incorrect criterion option: please write **bank** or **ratio**",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
 
     message = ""
 
