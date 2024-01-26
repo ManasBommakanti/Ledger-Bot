@@ -490,7 +490,10 @@ async def individ_stats(ctx, member: discord.Member = None):
     await ctx.respond(file=file, embed=embed)
 
 
-@ledger.command(name="leaderboard", description="Current Poker Leaderboard")
+@ledger.command(
+    name="leaderboard",
+    description="Current Poker Leaderboard (use 'ratio' or 'bank' for sorting)",
+)
 async def leaderboard(ctx, criterion: str = "bank"):
     data = await get_player_data(ctx)
 
@@ -521,14 +524,29 @@ async def leaderboard(ctx, criterion: str = "bank"):
     message = ""
 
     # Iterate through all players
-    for rank, (username, ratio) in enumerate(sorted_players, start=1):
+    for rank, (username, value) in enumerate(sorted_players, start=1):
         message += f"""{rank}. **{username}**
             Hands Won: {data[username]['hands_won']}
-            Hands Lost: {data[username]['hands_lost']}
-            W/L Ratio: {round(ratio, 2)}\n"""
+            Hands Lost: {data[username]['hands_lost']}"""
+
+        if criterion == "bank":
+            if value < 0:
+                message += f"""
+            Bank Balance: -${-round(value, 2)}\n"""
+            else:
+                message += f"""
+            Bank Balance: ${round(value, 2)}\n"""
+        elif criterion == "ratio":
+            message += f"""
+            W/L Ratio: {round(value, 2)}\n"""
+
+    if criterion == "bank":
+        title = f"Leaderboard: Bank Balance"
+    elif criterion == "ratio":
+        title = f"Leaderboard: W/L Ratio"
 
     embed = discord.Embed(
-        title="Leaderboard",
+        title=title,
         description=message,
         colour=discord.Colour.blue(),
     )
