@@ -162,7 +162,9 @@ async def addplayer(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(name="updatebank", description="Update bank amount")
+@ledger.command(
+    name="updatebank", description="Update bank amount with negative or positive amount"
+)
 async def updatebank(ctx, change: int, member: discord.Member = None):
     name = await get_username(ctx, member)
     data = await get_player_data(ctx)
@@ -182,6 +184,15 @@ async def updatebank(ctx, change: int, member: discord.Member = None):
 
     new_amount = data[name]["bank"] + change
 
+    message = f"Updated Player **{name}'s** bank account!\n"
+
+    if new_amount < 0:
+        message += f"Bank Account Total: -${-new_amount}\n\n"
+        message += f"Player is in **debt** :("
+        color = discord.Colour.red()
+    else:
+        message += f"Bank Account Total: ${new_amount}\n"
+
     data[name]["bank"] = new_amount
     data[name]["bank_history"].append(new_amount)
 
@@ -189,10 +200,7 @@ async def updatebank(ctx, change: int, member: discord.Member = None):
 
     embed = discord.Embed(
         title=f"Updating Bank Account",
-        description=(
-            f"Updated Player **{name}'s** bank account!\n"
-            f"Bank Account Total: ${new_amount}\n"
-        ),
+        description=message,
         colour=color,
     )
 
@@ -448,16 +456,24 @@ async def individ_stats(ctx, member: discord.Member = None):
     user_stats = data[name]
     stats_message = (
         f"Player **{name}**\n\n"
-        f"Bank: ${user_stats['bank']}\n"
         f"Hands Won: {user_stats['hands_won']}\n"
         f"Hands Lost: {user_stats['hands_lost']}\n"
         f"Folds: {user_stats['folds']}\n"
     )
 
+    color = discord.Colour.blue()
+
+    if user_stats["bank"] < 0:
+        stats_message += f"Bank Account Total: -${-user_stats['bank']}\n\n"
+        stats_message += f"Player is in **debt** :("
+        color = discord.Colour.red()
+    else:
+        stats_message += f"Bank Account Total: ${user_stats['bank']}\n"
+
     embed = discord.Embed(
         title="Statistics",
         description=stats_message,
-        colour=discord.Colour.blue(),
+        colour=color,
     )
 
     try:
