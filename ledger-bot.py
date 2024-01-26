@@ -19,7 +19,9 @@ bot = discord.Bot()
 ledger = discord.SlashCommandGroup("ledger", "ledger command group")
 client = discord.Client()
 
-#### HELPER FUNCTIONS
+"""
+HELPER FUNCTIONS
+"""
 
 
 # Gets the username of Discord Member
@@ -74,7 +76,9 @@ async def update_data(ctx, data: dict):
         return await ctx.respond(embed=embed)
 
 
-#### COMMAND FUNCTIONS
+"""
+COMMAND FUNCTIONS
+"""
 
 
 @bot.event
@@ -84,7 +88,7 @@ async def on_ready():
 
 
 @ledger.command(
-    name="addplayer", description="Add yourself or another user to the Poker Ledger!"
+    name="addplayer", description="Add yourself or another user to the Poker Ledger"
 )
 async def addplayer(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
@@ -95,7 +99,7 @@ async def addplayer(ctx, member: discord.Member = None):
         embed = discord.Embed(
             title="Error!",
             description=f"Player with username **{name}** already exists.",
-            color=discord.Colour.red(),
+            color=discord.Colour.dark_red(),
         )
         return await ctx.respond(embed=embed)
 
@@ -113,33 +117,29 @@ async def addplayer(ctx, member: discord.Member = None):
     embed = discord.Embed(
         title="Player Added!",
         description=f"Welcome **{name}**!",
-        color=discord.Colour.green(),
+        color=discord.Colour.dark_green(),
     )
 
     await ctx.respond(embed=embed)
 
 
-@ledger.command()
-async def showstats(ctx, name: str):
-    # Load existing data from the ledger.json file
-    try:
-        with open("secrets/ledger.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        # If the file doesn't exist, initialize data as an empty dictionary
-        data = {}
+@ledger.command(name="stats", description="Get your or another player's Poker stats")
+async def stats(ctx, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_data(ctx)
 
     # Check if the player with the given name does not exist
     if name not in data:
         embed = discord.Embed(
             title="Error!",
             description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.red(),
+            color=discord.Colour.dark_red(),
         )
         return await ctx.respond(embed=embed)
 
     user_stats = data[name]
     stats_message = (
+        f"Player **{name}**\n\n"
         f"Bank: ${user_stats['bank']}\n"
         f"Hands Won: {user_stats['hands_won']}\n"
         f"Hands Lost: {user_stats['hands_lost']}\n"
@@ -147,7 +147,7 @@ async def showstats(ctx, name: str):
     )
 
     embed = discord.Embed(
-        title=f"Statistics for {name}",
+        title="Statistics",
         description=stats_message,
         colour=discord.Colour.blue(),
     )
@@ -155,66 +155,80 @@ async def showstats(ctx, name: str):
     await ctx.respond(embed=embed)
 
 
-@ledger.command()
-async def addwin(ctx, name: str):
-    # Load existing data from the ledger.json file
-    try:
-        with open("secrets/ledger.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        # If the file doesn't exist, initialize data as an empty dictionary
-        data = {}
+@ledger.command(name="addwin", description="Add a win to yourself or another player")
+async def addwin(ctx, member: discord.Member = None):
+    name = get_username(ctx, member)
+    data = get_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
-        return await ctx.respond(f"Player {name} does not exist!")
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player with username **{name}** is not in Ledger System.",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
 
     update_wins = data[name]["hands_won"] + 1
     data[name]["hands_won"] = update_wins
 
-    # Save the updated data back to the ledger.json file
-    with open("secrets/ledger.json", "w") as f:
-        json.dump(data, f, indent=4)
+    update_data(ctx, data)
 
-    message = f"Added one win to Player {name}\n" f"Total Wins: {update_wins}\n"
+    embed = discord.Embed(
+        title=f"Updating Win",
+        description=(
+            f"*Added* one win to Player {name}!\n" f"Total Wins: {update_wins}\n"
+        ),
+        colour=discord.Colour.green(),
+    )
 
-    await ctx.respond(message)
+    await ctx.respond(embed=embed)
 
 
-@ledger.command()
-async def removewin(ctx, name: str):
-    # Load existing data from the ledger.json file
-    try:
-        with open("secrets/ledger.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        # If the file doesn't exist, initialize data as an empty dictionary
-        data = {}
+@ledger.command(
+    name="removewin", description="Remove a win from yourself or another player"
+)
+async def removewin(ctx, member: discord.Member):
+    name = get_username(ctx, member)
+    data = get_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
-        return await ctx.respond(f"Player {name} does not exist!")
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player with username **{name}** is not in Ledger System.",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
 
     # Check if hands_won = 0 because we cannot go negative
     if data[name]["hands_won"] <= 0:
-        return await ctx.respond(
-            (f"Player {name} did not win anything :(\n" f"Cannot remove from 0 wins")
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player {name} did not win anything :(\n"
+            f"Cannot remove from 0 wins",
+            color=discord.Colour.dark_red(),
         )
+        return await ctx.respond(embed=embed)
 
     update_wins = data[name]["hands_won"] - 1
     data[name]["hands_won"] = update_wins
 
-    # Save the updated data back to the ledger.json file
-    with open("secrets/ledger.json", "w") as f:
-        json.dump(data, f, indent=4)
+    update_data(ctx, data)
 
-    message = f"Removed one win to Player {name}\n" f"Total Wins: {update_wins}\n"
+    embed = discord.Embed(
+        title=f"Updating Win",
+        description=(
+            f"*Removed* one win to Player {name}!\n" f"Total Wins: {update_wins}\n"
+        ),
+        colour=discord.Colour.red(),
+    )
 
-    await ctx.respond(message)
+    await ctx.respond(embed=embed)
 
 
 @ledger.command()
-async def addloss(ctx, name: str):
+async def addloss(ctx, member: discord.Member):
     # Load existing data from the ledger.json file
     try:
         with open("secrets/ledger.json", "r") as f:
