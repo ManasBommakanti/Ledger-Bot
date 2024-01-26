@@ -123,8 +123,10 @@ async def addplayer(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(name="stats", description="Get your or another player's Poker stats")
-async def stats(ctx, member: discord.Member = None):
+@ledger.command(
+    name="individual_stats", description="Get your or another player's Poker stats"
+)
+async def individ_stats(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
     data = await get_data(ctx)
 
