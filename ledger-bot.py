@@ -58,7 +58,7 @@ async def addplayer(ctx, name: str):
 async def showstats(ctx, name: str):
     # Load existing data from the ledger.json file
     try:
-        with open("ledger.json", "r") as f:
+        with open("secrets/ledger.json", "r") as f:
             data = json.load(f)
     except FileNotFoundError:
         # If the file doesn't exist, initialize data as an empty dictionary
@@ -120,6 +120,12 @@ async def removewin(ctx, name: str):
     if name not in data:
         return await ctx.send(f"Player {name} does not exist!")
 
+    # Check if hands_won = 0 because we cannot go negative
+    if data[name]["hands_won"] <= 0:
+        return await ctx.send(
+            (f"Player {name} did not win anything :(\n" f"Cannot remove from 0 wins")
+        )
+
     update_wins = data[name]["hands_won"] - 1
     data[name]["hands_won"] = update_wins
 
@@ -176,6 +182,15 @@ async def removeloss(ctx, name: str):
     if data[name]["hands_lost"] == 0:
         return await ctx.send(f"Player {name} has 0 losses. Cannot remove loss!")
 
+    # Check if hands_lost = 0 because we cannot go negative
+    if data[name]["hands_lost"] <= 0:
+        return await ctx.send(
+            (
+                f"Player {name} did not lose anything... yet\n"
+                f"Cannot remove from 0 losses"
+            )
+        )
+
     update_loss = data[name]["hands_lost"] - 1
     data[name]["hands_lost"] = update_loss
 
@@ -227,6 +242,15 @@ async def removefold(ctx, name: str):
     # Check if the player with the given name already exists
     if name not in data:
         return await ctx.send(f"Player {name} does not exist!")
+
+    # Check if folds = 0 because we cannot go negative
+    if data[name]["folds"] <= 0:
+        return await ctx.send(
+            (
+                f"Player {name} did not fold anytime (idk how)\n"
+                f"Cannot remove from 0 folds"
+            )
+        )
 
     update_fold = data[name]["folds"] - 1
     data[name]["hands_won"] = update_fold
