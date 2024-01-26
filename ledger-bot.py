@@ -4,6 +4,7 @@ from discord.commands import Option
 
 import json
 import asyncio
+import os
 
 description = """
     Bot to store poker ledgers for poker game nights.
@@ -405,13 +406,13 @@ async def leaderboard(ctx):
 
     # Iterate through all players
     for rank, (username, ratio) in enumerate(sorted_players, start=1):
-        message += f"""{rank}. **{username}**\n
+        message += f"""{rank}. **{username}**
             Hands Won: {data[username]['hands_won']}
             Hands Lost: {data[username]['hands_lost']}
-            Ratio: {ratio}\n"""
+            W/L Ratio: {ratio}\n"""
 
     embed = discord.Embed(
-        title="Statistics",
+        title="Leaderboard",
         description=message,
         colour=discord.Colour.blue(),
     )
@@ -431,11 +432,14 @@ def setup_ledger():
     except Exception as e:
         print(e)
 
-    print("INITIALIZED FILE")
+    print("INITIALIZED FILE secrets/ledger.json")
 
 
 if __name__ == "__main__":
-    setup_ledger()
+    if not os.path.exists("secrets/ledger.json"):
+        setup_ledger()
+    else:
+        print("Ledger already set up")
 
     bot.add_application_command(ledger)
     bot.run(secrets["TOKEN"])
