@@ -24,6 +24,7 @@ bot = discord.Bot()
 ledger = discord.SlashCommandGroup("ledger", "ledger command group")
 client = discord.Client()
 
+# Lock used for thread locks for reading and writing to files
 lock = asyncio.Lock()
 
 plt.rcParams["font.family"] = "sans-serif"
@@ -162,10 +163,49 @@ async def addplayer(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
+@ledger.command(name="buyin", description="Buy in with a minimum of $200")
+async def buyin(ctx, member: discord.Member = None, amount: int = 200):
+    if amount < 200:
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Must play with at least $200.",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
+
+    name = await get_username(ctx, member)
+    data = await get_player_data(ctx)
+
+    new_amount = data[name]["bank"] - amount
+    data[name]["bank"] = new_amount
+
+    await update_player_data(ctx, data)
+
+    message = f"Updated Player **{name}'s** bank account!\n"
+
+    color = discord.Colour.green()
+
+    if new_amount < 0:
+        message += f"Bank Account Total: -${-new_amount}\n\n"
+        message += f"Player is in **debt** :("
+        color = discord.Colour.red()
+    else:
+        message += f"Bank Account Total: ${new_amount}\n"
+
+    embed = discord.Embed(
+        title=f"Updating Bank Account",
+        description=message,
+        colour=color,
+    )
+
+    await ctx.respond(embed=embed)
+
+
 @ledger.command(
-    name="updatebank", description="Update bank amount with negative or positive amount"
+    name="updatebank",
+    description="Update bank amount with how many chips are remaining",
 )
-async def updatebank(ctx, change: int, member: discord.Member = None):
+async def updatebank(ctx, amount: int, member: discord.Member = None):
     name = await get_username(ctx, member)
     data = await get_player_data(ctx)
 
@@ -179,8 +219,6 @@ async def updatebank(ctx, change: int, member: discord.Member = None):
         return await ctx.respond(embed=embed)
 
     color = discord.Colour.green()
-    if change < 0:
-        color = discord.Colour.red()
 
     new_amount = data[name]["bank"] + change
 
