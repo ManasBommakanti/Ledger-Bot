@@ -420,6 +420,22 @@ async def leaderboard(ctx):
     await ctx.respond(embed=embed)
 
 
+@ledger.command(name="hands", description="Ranks of Hands in Texas Holdem Poker")
+async def hands(ctx):
+    try:
+        with open("poker-hands-rank.png", "rb") as f:
+            picture = discord.File(f)
+            await ctx.respond(file=picture)
+    except Exception as e:
+        print(e)
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Something is wrong internally :(",
+            color=discord.Colour.red(),
+        )
+        return await ctx.respond(embed=embed)
+
+
 """
 SETUP FUNCTIONS
 """
