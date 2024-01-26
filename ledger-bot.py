@@ -78,7 +78,7 @@ async def update_player_data(ctx, data: dict):
 
 
 """
-COMMAND FUNCTIONS
+UPDATE COMMAND FUNCTIONS
 """
 
 
@@ -119,40 +119,6 @@ async def addplayer(ctx, member: discord.Member = None):
         title="Player Added!",
         description=f"Welcome **{name}**!",
         color=discord.Colour.dark_green(),
-    )
-
-    await ctx.respond(embed=embed)
-
-
-@ledger.command(
-    name="individual_stats", description="Get your or another player's Poker stats"
-)
-async def individ_stats(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
-
-    # Check if the player with the given name does not exist
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    user_stats = data[name]
-    stats_message = (
-        f"Player **{name}**\n\n"
-        f"Bank: ${user_stats['bank']}\n"
-        f"Hands Won: {user_stats['hands_won']}\n"
-        f"Hands Lost: {user_stats['hands_lost']}\n"
-        f"Folds: {user_stats['folds']}\n"
-    )
-
-    embed = discord.Embed(
-        title="Statistics",
-        description=stats_message,
-        colour=discord.Colour.blue(),
     )
 
     await ctx.respond(embed=embed)
@@ -381,6 +347,81 @@ async def removefold(ctx, member: discord.Member = None):
     )
 
     await ctx.respond(embed=embed)
+
+
+"""
+DISPLAY COMMAND FUNCTIONS
+"""
+
+
+@ledger.command(
+    name="individual_stats", description="Get your or another player's Poker stats"
+)
+async def individ_stats(ctx, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_player_data(ctx)
+
+    # Check if the player with the given name does not exist
+    if name not in data:
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player with username **{name}** is not in Ledger System.",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
+
+    user_stats = data[name]
+    stats_message = (
+        f"Player **{name}**\n\n"
+        f"Bank: ${user_stats['bank']}\n"
+        f"Hands Won: {user_stats['hands_won']}\n"
+        f"Hands Lost: {user_stats['hands_lost']}\n"
+        f"Folds: {user_stats['folds']}\n"
+    )
+
+    embed = discord.Embed(
+        title="Statistics",
+        description=stats_message,
+        colour=discord.Colour.blue(),
+    )
+
+    await ctx.respond(embed=embed)
+
+
+@ledger.command(name="leaderboard", description="Current Poker Leaderboard")
+async def leaderboard(ctx):
+    data = await get_player_data(ctx)
+
+    # Calculate ratios and create a list of players with usernames and ratios
+    player_ratios = [
+        (username, player["hands_won"] / max(1, player["hands_lost"]))
+        for username, player in data.items()
+    ]
+
+    # Sort the list based on ratios in descending order
+    sorted_players = sorted(player_ratios, key=lambda x: x[1], reverse=True)
+
+    message = ""
+
+    # Iterate through all players
+    for rank, (username, ratio) in enumerate(sorted_players, start=1):
+        message += f"""{rank}. **{username}**\n
+            Hands Won: {data[username]['hands_won']}
+            Hands Lost: {data[username]['hands_lost']}
+            Ratio: {ratio}\n"""
+
+    embed = discord.Embed(
+        title="Statistics",
+        description=message,
+        colour=discord.Colour.blue(),
+    )
+
+    await ctx.respond(embed=embed)
+
+
+"""
+SETUP FUNCTIONS
+"""
 
 
 def setup_ledger():
