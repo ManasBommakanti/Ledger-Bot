@@ -1,9 +1,9 @@
 import discord
 from discord.ext import commands
 from discord.commands import Option
-import random
 
 import json
+import asyncio
 
 description = """
     Bot to store poker ledgers for poker game nights.
@@ -19,15 +19,11 @@ bot = discord.Bot()
 ledger = discord.SlashCommandGroup("ledger", "ledger command group")
 client = discord.Client()
 
-
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
-    print("------")
+#### HELPER FUNCTIONS
 
 
-@ledger.command(name="addplayer", description="Add your name to the Poker Ledger!")
-async def addplayer(ctx, member: discord.Member = None):
+# Gets the username of Discord Member
+async def get_username(ctx, member: discord.Member) -> str:
     if member is None:
         # If no member is specified, use the author's username
         name = ctx.author.display_name
@@ -37,6 +33,11 @@ async def addplayer(ctx, member: discord.Member = None):
 
     print("USERNAME: ", name)
 
+    return name
+
+
+# Gets the latest data from Ledger System
+async def get_data(ctx) -> dict:
     # Load existing data from the ledger.json file
     try:
         with open("secrets/ledger.json", "r") as f:
@@ -53,6 +54,41 @@ async def addplayer(ctx, member: discord.Member = None):
             color=discord.Colour.red(),
         )
         return await ctx.respond(embed=embed)
+
+    return data
+
+
+# Update data of Ledger System
+async def update_data(ctx, data: dict):
+    # Save the updated data back to the ledger.json file
+    try:
+        with open("secrets/ledger.json", "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print(e)
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Something is wrong internally :(",
+            color=discord.Colour.red(),
+        )
+        return await ctx.respond(embed=embed)
+
+
+#### COMMAND FUNCTIONS
+
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    print("------")
+
+
+@ledger.command(
+    name="addplayer", description="Add yourself or another user to the Poker Ledger!"
+)
+async def addplayer(ctx, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_data(ctx)
 
     # Check if the player with the given name already exists
     if name in data:
@@ -72,9 +108,7 @@ async def addplayer(ctx, member: discord.Member = None):
         "folds": 0,
     }
 
-    # Save the updated data back to the ledger.json file
-    with open("secrets/ledger.json", "w") as f:
-        json.dump(data, f, indent=4)
+    await update_data(ctx, data)
 
     embed = discord.Embed(
         title="Player Added!",
