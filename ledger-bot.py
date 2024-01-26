@@ -157,8 +157,8 @@ async def stats(ctx, member: discord.Member = None):
 
 @ledger.command(name="addwin", description="Add a win to yourself or another player")
 async def addwin(ctx, member: discord.Member = None):
-    name = get_username(ctx, member)
-    data = get_data(ctx)
+    name = await get_username(ctx, member)
+    data = await get_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
@@ -172,12 +172,12 @@ async def addwin(ctx, member: discord.Member = None):
     update_wins = data[name]["hands_won"] + 1
     data[name]["hands_won"] = update_wins
 
-    update_data(ctx, data)
+    await update_data(ctx, data)
 
     embed = discord.Embed(
         title=f"Updating Win",
         description=(
-            f"*Added* one win to Player {name}!\n" f"Total Wins: {update_wins}\n"
+            f"*Added* one win to Player **{name}**!\n" f"Total Win(s): {update_wins}\n"
         ),
         colour=discord.Colour.green(),
     )
@@ -188,9 +188,9 @@ async def addwin(ctx, member: discord.Member = None):
 @ledger.command(
     name="removewin", description="Remove a win from yourself or another player"
 )
-async def removewin(ctx, member: discord.Member):
-    name = get_username(ctx, member)
-    data = get_data(ctx)
+async def removewin(ctx, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
@@ -205,7 +205,7 @@ async def removewin(ctx, member: discord.Member):
     if data[name]["hands_won"] <= 0:
         embed = discord.Embed(
             title="Error!",
-            description=f"Player {name} did not win anything :(\n"
+            description=f"Player **{name}** did not win anything :(\n"
             f"Cannot remove from 0 wins",
             color=discord.Colour.dark_red(),
         )
@@ -214,12 +214,12 @@ async def removewin(ctx, member: discord.Member):
     update_wins = data[name]["hands_won"] - 1
     data[name]["hands_won"] = update_wins
 
-    update_data(ctx, data)
+    await update_data(ctx, data)
 
     embed = discord.Embed(
         title=f"Updating Win",
         description=(
-            f"*Removed* one win to Player {name}!\n" f"Total Wins: {update_wins}\n"
+            f"*Removed* one win to Player **{name}**!\n" f"Total Wins: {update_wins}\n"
         ),
         colour=discord.Colour.red(),
     )
@@ -228,7 +228,7 @@ async def removewin(ctx, member: discord.Member):
 
 
 @ledger.command()
-async def addloss(ctx, member: discord.Member):
+async def addloss(ctx, name: str):
     # Load existing data from the ledger.json file
     try:
         with open("secrets/ledger.json", "r") as f:
