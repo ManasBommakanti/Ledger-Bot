@@ -219,7 +219,8 @@ async def removewin(ctx, member: discord.Member = None):
     embed = discord.Embed(
         title=f"Updating Win",
         description=(
-            f"*Removed* one win to Player **{name}**!\n" f"Total Wins: {update_wins}\n"
+            f"*Removed* one win from Player **{name}**!\n"
+            f"Total Win(s): {update_wins}\n"
         ),
         colour=discord.Colour.red(),
     )
@@ -227,69 +228,80 @@ async def removewin(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command()
-async def addloss(ctx, name: str):
-    # Load existing data from the ledger.json file
-    try:
-        with open("secrets/ledger.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        # If the file doesn't exist, initialize data as an empty dictionary
-        data = {}
+@ledger.command(name="addloss", description="Add a loss to yourself or another player")
+async def addloss(ctx, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
-        return await ctx.respond(f"Player {name} does not exist!")
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player with username **{name}** is not in Ledger System.",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
 
     update_loss = data[name]["hands_lost"] + 1
     data[name]["hands_lost"] = update_loss
 
-    # Save the updated data back to the ledger.json file
-    with open("secrets/ledger.json", "w") as f:
-        json.dump(data, f, indent=4)
+    await update_data(ctx, data)
 
-    message = f"Added one win to Player {name}\n" f"Total Wins: {update_loss}\n"
+    embed = discord.Embed(
+        title=f"Updating Loss",
+        description=(
+            f"*Added* one loss to Player **{name}**!\n"
+            f"Total Loss(es): {update_loss}\n"
+        ),
+        colour=discord.Colour.red(),
+    )
 
-    await ctx.respond(message)
+    await ctx.respond(embed=embed)
 
 
-@ledger.command()
-async def removeloss(ctx, name: str):
-    # Load existing data from the ledger.json file
-    try:
-        with open("secrets/ledger.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        # If the file doesn't exist, initialize data as an empty dictionary
-        data = {}
+@ledger.command(
+    name="removeloss", description="Remove a loss from yourself or another player"
+)
+async def removeloss(ctx, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
-        return await ctx.respond(f"Player {name} does not exist!")
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player with username **{name}** is not in Ledger System.",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
 
     # Check if player has more than 0 losses in order to remove one
-    if data[name]["hands_lost"] == 0:
-        return await ctx.respond(f"Player {name} has 0 losses. Cannot remove loss!")
-
-    # Check if hands_lost = 0 because we cannot go negative
     if data[name]["hands_lost"] <= 0:
-        return await ctx.respond(
-            (
+        embed = discord.Embed(
+            title="Error!",
+            description=(
                 f"Player {name} did not lose anything... yet\n"
                 f"Cannot remove from 0 losses"
-            )
+            ),
+            color=discord.Colour.dark_red(),
         )
+        return await ctx.respond(embed=embed)
 
     update_loss = data[name]["hands_lost"] - 1
     data[name]["hands_lost"] = update_loss
 
-    # Save the updated data back to the ledger.json file
-    with open("secrets/ledger.json", "w") as f:
-        json.dump(data, f, indent=4)
+    await update_data(ctx, data)
 
-    message = f"Removed one win to Player {name}\n" f"Total Wins: {update_loss}\n"
+    embed = discord.Embed(
+        title=f"Updating Loss",
+        description=(
+            f"*Removed* one loss from Player **{name}**!\n"
+            f"Total Loss(es): {update_loss}\n"
+        ),
+        colour=discord.Colour.green(),
+    )
 
-    await ctx.respond(message)
+    await ctx.respond(embed=embed)
 
 
 @ledger.command()
