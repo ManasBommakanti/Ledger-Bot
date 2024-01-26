@@ -8,6 +8,7 @@ import os
 import asyncio
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 description = """
     Bot to store poker ledgers for poker game nights.
@@ -24,6 +25,8 @@ ledger = discord.SlashCommandGroup("ledger", "ledger command group")
 client = discord.Client()
 
 lock = asyncio.Lock()
+
+plt.rcParams["font.family"] = "sans-serif"
 
 """
 HELPER FUNCTIONS
@@ -94,7 +97,11 @@ async def create_player_bank_graph(username: str, bank_history):
     ax.set_xlabel("Round")
     ax.set_ylabel("Bank Balance")
     ax.set_title(f"{username}'s Bank Balance History")
-    ax.legend()
+
+    fig.set_facecolor("#2596be")
+
+    # Force x-axis ticks to be integers
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     # Save the plot to a BytesIO object
     image_stream = io.BytesIO()
@@ -155,7 +162,6 @@ async def addplayer(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-# TODO: Implement updating bank amount
 @ledger.command(name="updatebank", description="Update bank amount")
 async def updatebank(ctx, change: int, member: discord.Member = None):
     name = await get_username(ctx, member)
