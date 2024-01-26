@@ -280,7 +280,7 @@ async def removeloss(ctx, member: discord.Member = None):
         embed = discord.Embed(
             title="Error!",
             description=(
-                f"Player {name} did not lose anything... yet\n"
+                f"Player **{name}** did not lose anything... yet\n"
                 f"Cannot remove from 0 losses"
             ),
             color=discord.Colour.dark_red(),
@@ -304,66 +304,82 @@ async def removeloss(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command()
-async def addfold(ctx, name: str):
-    # Load existing data from the ledger.json file
-    try:
-        with open("secrets/ledger.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        # If the file doesn't exist, initialize data as an empty dictionary
-        data = {}
+@ledger.command(name="addfold", description="Add a fold to yourself or another player")
+async def addfold(ctx, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
-        return await ctx.respond(f"Player {name} does not exist!")
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player with username **{name}** is not in Ledger System.",
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
 
     update_folds = data[name]["folds"] + 1
     data[name]["folds"] = update_folds
 
-    # Save the updated data back to the ledger.json file
-    with open("secrets/ledger.json", "w") as f:
-        json.dump(data, f, indent=4)
+    await update_data(ctx, data)
 
-    message = f"Added one win to Player {name}\n" f"Total Wins: {update_folds}\n"
+    embed = discord.Embed(
+        title=f"Updating Folds",
+        description=(
+            f"*Added* one fold to Player **{name}**!\n"
+            f"Total Fold(s): {update_folds}\n"
+        ),
+        colour=discord.Colour.dark_gray(),
+    )
 
-    await ctx.respond(message)
+    await ctx.respond(embed=embed)
 
 
-@ledger.command()
-async def removefold(ctx, name: str):
-    # Load existing data from the ledger.json file
-    try:
-        with open("secrets/ledger.json", "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        # If the file doesn't exist, initialize data as an empty dictionary
-        data = {}
+@ledger.command(
+    name="removefold", description="Remove a fold from yourself or another player"
+)
+async def removefold(ctx, member: discord.Member = None):
+    name = await get_username(ctx, member)
+    data = await get_data(ctx)
 
     # Check if the player with the given name already exists
     if name not in data:
-        return await ctx.respond(f"Player {name} does not exist!")
-
-    # Check if folds = 0 because we cannot go negative
-    if data[name]["folds"] <= 0:
-        return await ctx.respond(
-            (
-                f"Player {name} did not fold anytime (idk how)\n"
-                f"Cannot remove from 0 folds"
-            )
+        embed = discord.Embed(
+            title="Error!",
+            description=f"Player with username **{name}** is not in Ledger System.",
+            color=discord.Colour.dark_red(),
         )
+        return await ctx.respond(embed=embed)
 
-    update_fold = data[name]["folds"] - 1
-    data[name]["hands_won"] = update_fold
+    # Check if player has more than 0 losses in order to remove one
+    if data[name]["folds"] <= 0:
+        embed = discord.Embed(
+            title="Error!",
+            description=(
+                f"Player **{name}** did not fold yet (idk how)\n"
+                f"Cannot remove from 0 folds"
+            ),
+            color=discord.Colour.dark_red(),
+        )
+        return await ctx.respond(embed=embed)
 
-    # Save the updated data back to the ledger.json file
-    with open("secrets/ledger.json", "w") as f:
-        json.dump(data, f, indent=4)
+    update_folds = data[name]["folds"] - 1
+    data[name]["folds"] = update_folds
 
-    message = f"Removed one win to Player {name}\n" f"Total Wins: {update_fold}\n"
+    await update_data(ctx, data)
 
-    await ctx.respond(message)
+    embed = discord.Embed(
+        title=f"Updating Folds",
+        description=(
+            f"*Removed* one fold from Player **{name}**!\n"
+            f"Total Fold(s): {update_folds}\n"
+        ),
+        colour=discord.Colour.dark_gray(),
+    )
+
+    await ctx.respond(embed=embed)
 
 
-bot.add_application_command(ledger)
-bot.run(secrets["TOKEN"])
+if __name__ == "__main__":
+    bot.add_application_command(ledger)
+    bot.run(secrets["TOKEN"])
