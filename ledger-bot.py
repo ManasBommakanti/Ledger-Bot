@@ -22,6 +22,7 @@ intents.message_content = True
 
 bot = discord.Bot()
 ledger = discord.SlashCommandGroup("ledger", "ledger command group")
+misc = discord.SlashCommandGroup("misc", "used for misc commands")
 client = discord.Client()
 
 # Lock used for thread locks for reading and writing to files
@@ -220,7 +221,7 @@ async def updatebank(ctx, amount: int, member: discord.Member = None):
 
     color = discord.Colour.green()
 
-    new_amount = data[name]["bank"] + change
+    new_amount = data[name]["bank"] + amount
 
     message = f"Updated Player **{name}'s** bank account!\n"
 
@@ -245,7 +246,7 @@ async def updatebank(ctx, amount: int, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(name="addwin", description="Add a win to yourself or another player")
+@misc.command(name="addwin", description="Add a win to yourself or another player")
 async def addwin(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
     data = await get_player_data(ctx)
@@ -275,7 +276,7 @@ async def addwin(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(
+@misc.command(
     name="removewin", description="Remove a win from yourself or another player"
 )
 async def removewin(ctx, member: discord.Member = None):
@@ -318,7 +319,7 @@ async def removewin(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(name="addloss", description="Add a loss to yourself or another player")
+@misc.command(name="addloss", description="Add a loss to yourself or another player")
 async def addloss(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
     data = await get_player_data(ctx)
@@ -349,7 +350,7 @@ async def addloss(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(
+@misc.command(
     name="removeloss", description="Remove a loss from yourself or another player"
 )
 async def removeloss(ctx, member: discord.Member = None):
@@ -394,7 +395,7 @@ async def removeloss(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(name="addfold", description="Add a fold to yourself or another player")
+@misc.command(name="addfold", description="Add a fold to yourself or another player")
 async def addfold(ctx, member: discord.Member = None):
     name = await get_username(ctx, member)
     data = await get_player_data(ctx)
@@ -425,7 +426,7 @@ async def addfold(ctx, member: discord.Member = None):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(
+@misc.command(
     name="removefold", description="Remove a fold from yourself or another player"
 )
 async def removefold(ctx, member: discord.Member = None):
@@ -629,5 +630,6 @@ if __name__ == "__main__":
     else:
         print("Ledger already set up")
 
+    bot.add_application_command(misc)
     bot.add_application_command(ledger)
     bot.run(secrets["TOKEN"])
