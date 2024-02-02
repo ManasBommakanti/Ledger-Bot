@@ -116,6 +116,34 @@ async def create_player_bank_graph(username: str, bank_history):
     return image_stream
 
 
+# Function to create a bank balance graph for a specific player
+async def create_leaderboard_graph(player_data: dict):
+    fig, ax = plt.subplots()
+    for player in player_data:
+        print("bank history: ", player_data[player]["bank_history"])
+        ax.plot(player_data[player]["bank_history"], label=player)
+
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Bank Balance")
+    ax.set_title(f"Bank Balance History")
+    ax.legend()
+
+    fig.set_facecolor("#2596be")
+
+    # Force x-axis ticks to be integers
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+
+    # Save the plot to a BytesIO object
+    image_stream = io.BytesIO()
+    plt.savefig(image_stream, format="png")
+    image_stream.seek(0)
+
+    # Clear the plot for the next use
+    plt.clf()
+
+    return image_stream
+
+
 """
 UPDATE COMMAND FUNCTIONS
 """
@@ -531,58 +559,56 @@ async def individ_stats(ctx, member: discord.Member = None):
 
 @ledger.command(
     name="leaderboard",
-    description="Current Poker Leaderboard (use 'ratio' or 'bank' for sorting)",
+    description="Current Poker Leaderboard",
 )
-async def leaderboard(ctx, criterion: str = "bank"):
+async def leaderboard(ctx):
     data = await get_player_data(ctx)
 
     sorted_players = []
 
-    if criterion == "bank":
-        player_bank = [(username, player["bank"]) for username, player in data.items()]
+    print(data.items())
 
-        # Sort the list based on ratios in descending order
-        sorted_players = sorted(player_bank, key=lambda x: x[1], reverse=True)
-    elif criterion == "ratio":
-        # Calculate ratios and create a list of players with usernames and ratios
-        player_ratios = [
-            (username, player["hands_won"] / max(1, player["hands_lost"]))
-            for username, player in data.items()
-        ]
+    # Find the maximum length among all arrays
+    max_length = max(len(data[player]["bank_history"]) for player in data)
 
-        # Sort the list based on ratios in descending order
-        sorted_players = sorted(player_ratios, key=lambda x: x[1], reverse=True)
-    else:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Incorrect criterion option: please write **bank** or **ratio**",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
+    update_data = False
+
+    # for player in player_data:
+    #     print("bank history: ", player_data[player]["bank_history"])
+    #     ax.plot(player_data[player]["bank_history"], label=player)
+
+    # Append the last element of each array until it reaches the max length
+    for player in data:
+        while len(data[player]["bank_history"]) < max_length:
+            update_data = True
+            data[player]["bank_history"].append(data[player]["bank_history"][-1])
+
+    if update_data:
+        await update_player_data(ctx, data)
+
+    # Update rounds not played for mismatched bank history array size
+    for username, player in data.items():
+        username, player["bank_history"]
+
+    player_bank = [(username, player["bank"]) for username, player in data.items()]
+
+    # Sort the list based on ratios in descending order
+    sorted_players = sorted(player_bank, key=lambda x: x[1], reverse=True)
 
     message = ""
 
     # Iterate through all players
     for rank, (username, value) in enumerate(sorted_players, start=1):
-        message += f"""{rank}. **{username}**
-            Hands Won: {data[username]['hands_won']}
-            Hands Lost: {data[username]['hands_lost']}"""
+        message += f"""{rank}. **{username}**"""
 
-        if criterion == "bank":
-            if value < 0:
-                message += f"""
-            Bank Balance: -${-round(value, 2)}\n"""
-            else:
-                message += f"""
-            Bank Balance: ${round(value, 2)}\n"""
-        elif criterion == "ratio":
+        if value < 0:
             message += f"""
-            W/L Ratio: {round(value, 2)}\n"""
+        Bank Balance: -${-round(value, 2)}\n"""
+        else:
+            message += f"""
+        Bank Balance: ${round(value, 2)}\n"""
 
-    if criterion == "bank":
-        title = f"Leaderboard: Bank Balance"
-    elif criterion == "ratio":
-        title = f"Leaderboard: W/L Ratio"
+    title = f"Leaderboard: Bank Balance"
 
     embed = discord.Embed(
         title=title,
@@ -590,7 +616,18 @@ async def leaderboard(ctx, criterion: str = "bank"):
         colour=discord.Colour.blue(),
     )
 
-    await ctx.respond(embed=embed)
+    try:
+        # Create the bank balance graph for the specified player
+        image_stream = await create_leaderboard_graph(data)
+
+        # Send the graph to Discord
+        file = discord.File(image_stream, filename=f"leaderboard_bank_graph.png")
+        # await ctx.respond(file=file)
+
+    except ValueError as e:
+        await ctx.respond(str(e))
+
+    await ctx.respond(file=file, embed=embed)
 
 
 @ledger.command(name="hands", description="Ranks of Hands in Texas Holdem Poker")
