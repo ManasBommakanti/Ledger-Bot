@@ -38,11 +38,13 @@ plt.rcParams["font.family"] = "sans-serif"
 HELPER FUNCTIONS
 """
 
+
 def money_fmt(amount: int) -> str:
     if amount < 0:
         return f"-${-amount}"
     else:
         return f"${amount}"
+
 
 async def disp_name(ident) -> str:
     try:
@@ -94,6 +96,7 @@ async def create_player_bank_graph(ledger_data: PersistentLedger, ident: str):
 
     return image_stream
 
+
 # Function to create a bank balance graph for a specific player
 async def create_leaderboard_graph(ledger_data: PersistentLedger):
     fig, ax = plt.subplots()
@@ -141,9 +144,11 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
 
     return image_stream
 
+
 """
 UPDATE COMMAND FUNCTIONS
 """
+
 
 @bot.event
 async def on_ready():
@@ -160,12 +165,9 @@ async def buyin(ctx, member: discord.Member = None, amount: int = 200):
     name = member.display_name
 
     async with ledger_data.lock:
-        ledger_data.append({
-            "u_from": ident,
-            "u_to": "pot",
-            "amount": amount,
-            "t": time()
-        })
+        ledger_data.append(
+            {"u_from": ident, "u_to": "pot", "amount": amount, "t": time()}
+        )
 
     balance = await ledger_data.player_balance(ident)
 
@@ -184,7 +186,10 @@ async def buyin(ctx, member: discord.Member = None, amount: int = 200):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(name="updatebank", description="Update bank amount with how many chips are remaining")
+@ledger.command(
+    name="updatebank",
+    description="Update bank amount with how many chips are remaining",
+)
 async def updatebank(ctx, amount: int, member: discord.Member = None):
     if member is None:
         member = ctx.author
@@ -192,13 +197,28 @@ async def updatebank(ctx, amount: int, member: discord.Member = None):
     ident = str(member.id)
     name = member.display_name
 
+    pot_balance = await ledger_data.player_balance("pot")
+
+    message = (
+        f"Amount is more than the pot! Make sure you have counted the correct amount.\n"
+    )
+    color = discord.Colour.red()
+
+    if amount > pot_balance:
+        embed = discord.Embed(
+            title=f"No.",
+            description=message,
+            colour=color,
+        )
+
+        await ctx.respond(embed=embed)
+
+        return
+
     async with ledger_data.lock:
-        ledger_data.append({
-            "u_from": "pot",
-            "u_to": ident,
-            "amount": amount,
-            "t": time()
-        })
+        ledger_data.append(
+            {"u_from": "pot", "u_to": ident, "amount": amount, "t": time()}
+        )
 
     color = discord.Colour.green()
 
@@ -226,19 +246,18 @@ async def updatebank(ctx, amount: int, member: discord.Member = None):
 DISPLAY COMMAND FUNCTIONS
 """
 
+
 @ledger.command(
     name="individual_stats", description="Get your or another player's Poker stats"
 )
 async def individ_stats(ctx, member: discord.Member = None):
     if member is None:
         member = ctx.author
-    
+
     ident = str(member.id)
     name = member.display_name
 
-    stats_message = (
-        f"Player **{name}**\n\n"
-    )
+    stats_message = f"Player **{name}**\n\n"
 
     color = discord.Colour.blue()
 
@@ -275,7 +294,10 @@ async def individ_stats(ctx, member: discord.Member = None):
     description="Current Poker Leaderboard",
 )
 async def leaderboard(ctx):
-    player_bals = {ident: await ledger_data.player_balance(ident) for ident in await ledger_data.unique_players()}
+    player_bals = {
+        ident: await ledger_data.player_balance(ident)
+        for ident in await ledger_data.unique_players()
+    }
 
     sorted_players = sorted(player_bals.items(), key=lambda x: x[1], reverse=True)
 
@@ -311,6 +333,7 @@ async def leaderboard(ctx):
 
     await ctx.respond(file=file, embed=embed)
 
+
 @ledger.command(name="mint", description="create new money out of thin air")
 async def mint(ctx, amount: int, member: discord.Member = None):
     if member is None:
@@ -320,12 +343,14 @@ async def mint(ctx, amount: int, member: discord.Member = None):
     name = member.display_name
 
     async with ledger_data.lock:
-        ledger_data.append({
-            "u_from": "U.S. Federal Reserve",
-            "u_to": ident,
-            "amount": amount,
-            "t": time()
-        })
+        ledger_data.append(
+            {
+                "u_from": "U.S. Federal Reserve",
+                "u_to": ident,
+                "amount": amount,
+                "t": time(),
+            }
+        )
 
     balance = await ledger_data.player_balance(ident)
 
