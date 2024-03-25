@@ -10,6 +10,10 @@ import asyncio
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
+from typing import TypedDict
+from time import time
+from datetime import datetime
+
 description = """
     Bot to store poker ledgers for poker game nights.
 """
@@ -25,80 +29,92 @@ ledger = discord.SlashCommandGroup("ledger", "ledger command group")
 misc = discord.SlashCommandGroup("misc", "used for misc commands")
 client = discord.Client()
 
-# Lock used for thread locks for reading and writing to files
-lock = asyncio.Lock()
-
 plt.rcParams["font.family"] = "sans-serif"
 
 """
 HELPER FUNCTIONS
 """
 
+class LedgerEntry(TypedDict):
+    u_from: str
+    u_to: str
+    amount: int
+    t: float
 
-# Gets the username of Discord Member
-async def get_username(ctx, member: discord.Member) -> str:
-    if member is None:
-        # If no member is specified, use the author's username
-        name = ctx.author.display_name
-    else:
-        # Use the specified member's username
-        name = member.display_name
+class PersistentLedger:
+    def __init__(self, fname: str):
+        self.fname = fname
+        self.lock = asyncio.Lock()
 
-    print("USERNAME: ", name)
+        self.data: list[LedgerEntry] = self.load()
+        self.save()
 
-    return name
+    def load(self):
+        out = []
 
-
-# Gets the latest data from Ledger System
-async def get_player_data(ctx) -> dict:
-    async with lock:
-        # Load existing data from the ledger.json file
         try:
-            with open("secrets/ledger.json", "r") as f:
-                data = json.load(f)
+            with open(self.fname, "r") as f:
+                out = json.load(f)
         except FileNotFoundError:
-            # If the file doesn't exist, initialize data as an empty dictionary
-            data = {}
-            print("Cannot find secrets/ledger.json")
+            pass
         except Exception as e:
             print(e)
-            embed = discord.Embed(
-                title="Error!",
-                description=f"Something is wrong internally :(",
-                color=discord.Colour.red(),
-            )
-            return await ctx.respond(embed=embed)
+            pass
 
-        return data["players"]
+        return out
+
+    def save(self):
+        with open(self.fname, "w") as f:
+            json.dump(self.data, f, indent=4)
+
+    async def player_balance(self, ident: str):
+        async with self.lock:
+            neg = sum(e["amount"] for e in self.data if e["u_from"] == ident)
+            pos = sum(e["amount"] for e in self.data if e["u_to"] == ident)
+
+        return pos - neg
+    
+    async def unique_players(self):
+        async with self.lock:
+            players = set()
+            for entry in self.data:
+                players.add(entry["u_from"])
+                players.add(entry["u_to"])
+
+        return players
+
+    def append(self, entry: LedgerEntry):
+        self.data.append(entry)
+        self.save()
 
 
-# Update data of Ledger System
-async def update_player_data(ctx, data: dict):
-    print(data)
-
-    async with lock:
-        # Save the updated data back to the ledger.json file
-        try:
-            with open("secrets/ledger.json", "w") as f:
-                json.dump({"players": data}, f, indent=4)
-        except Exception as e:
-            print(e)
-            embed = discord.Embed(
-                title="Error!",
-                description=f"Something is wrong internally :(",
-                color=discord.Colour.red(),
-            )
-            return await ctx.respond(embed=embed)
-
+ledger_data = PersistentLedger("secrets/nledger.json", [])
 
 # Function to create a bank balance graph for a specific player
-async def create_player_bank_graph(username: str, bank_history):
+async def create_player_bank_graph(ident: str):
+    running_balance = 0
+    timestamps = []
+    balances = []
+
+    user = await bot.fetch_user(ident)
+    name = user.display_name if user else ident
+
+    async with ledger_data.lock:
+        for entry in ledger_data.data:
+            if entry["u_from"] == ident:
+                running_balance -= entry["amount"]
+            elif entry["u_to"] == ident:
+                running_balance += entry["amount"]
+
+            timestamps.append(datetime.fromtimestamp(entry["t"]))
+            balances.append(running_balance)
+
     fig, ax = plt.subplots()
-    ax.plot(bank_history, label=username)
+    ax.plot(timestamps, balances, label=name)
 
     ax.set_xlabel("Round")
     ax.set_ylabel("Bank Balance")
-    ax.set_title(f"{username}'s Bank Balance History")
+    ax.set_title(f"{name}'s Bank Balance History")
 
     fig.set_facecolor("#2596be")
 
@@ -117,11 +133,29 @@ async def create_player_bank_graph(username: str, bank_history):
 
 
 # Function to create a bank balance graph for a specific player
-async def create_leaderboard_graph(player_data: dict):
+async def create_leaderboard_graph():
     fig, ax = plt.subplots()
-    for player in player_data:
-        print("bank history: ", player_data[player]["bank_history"])
-        ax.plot(player_data[player]["bank_history"], label=player)
+
+    players = await ledger_data.unique_players()
+    running_bals = {player: 0 for player in players}
+
+    timestamps = []
+    balances = {player: [] for player in players}
+
+    async with ledger_data.lock:
+        for entry in ledger_data.data:
+            running_bals[entry["u_from"]] -= entry["amount"]
+            running_bals[entry["u_to"]] += entry["amount"]
+
+            if running_bals["pot"] <= 0:
+                # when everyone's settled, add to the graph
+                for player in players:
+                    balances[player].append(running_bals[player])
+
+                timestamps.append(datetime.fromtimestamp(entry["t"]))
+
+    for player in players:
+        ax.plot(timestamps, balances[player], label=player)
 
     ax.set_xlabel("Round")
     ax.set_ylabel("Bank Balance")
@@ -148,78 +182,40 @@ async def create_leaderboard_graph(player_data: dict):
 UPDATE COMMAND FUNCTIONS
 """
 
-
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
     print("------")
 
 
-@ledger.command(
-    name="addplayer", description="Add yourself or another user to the Poker Ledger"
-)
-async def addplayer(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
-
-    # Check if the player with the given name already exists
-    if name in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** already exists.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    # Add the new player to the data
-    data[name] = {
-        "name": name,
-        "bank": 800,
-        "bank_history": [800],
-        "hands_won": 0,
-        "hands_lost": 0,
-        "folds": 0,
-    }
-
-    await update_player_data(ctx, data)
-
-    embed = discord.Embed(
-        title="Player Added!",
-        description=f"Welcome **{name}**!",
-        color=discord.Colour.dark_green(),
-    )
-
-    await ctx.respond(embed=embed)
-
-
-@ledger.command(name="buyin", description="Buy in with a minimum of $200")
+@ledger.command(name="buyin", description="Buy in, default $200")
 async def buyin(ctx, member: discord.Member = None, amount: int = 200):
-    if amount < 200:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Must play with at least $200.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
+    if member is None:
+        member = ctx.author
 
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
+    ident = str(member.id)
+    name = member.display_name
 
-    new_amount = data[name]["bank"] - amount
-    data[name]["bank"] = new_amount
+    async with ledger_data.lock:
+        ledger_data.append({
+            "u_from": ident,
+            "u_to": "pot",
+            "amount": amount,
+            "t": time()
+        })
 
-    await update_player_data(ctx, data)
+    balance = await ledger_data.player_balance(ident)
 
     message = f"Updated Player **{name}'s** bank account!\n"
 
     color = discord.Colour.green()
 
-    if new_amount < 0:
-        message += f"Bank Account Total: -${-new_amount}\n\n"
+    if balance < 0:
+        message += f"Bank Account Total: -${-balance}\n\n"
         message += f"Player is in **debt** :("
         color = discord.Colour.red()
     else:
-        message += f"Bank Account Total: ${new_amount}\n"
+        message += f"Bank Account Total: ${balance}\n"
 
     embed = discord.Embed(
         title=f"Updating Bank Account",
@@ -230,26 +226,25 @@ async def buyin(ctx, member: discord.Member = None, amount: int = 200):
     await ctx.respond(embed=embed)
 
 
-@ledger.command(
-    name="updatebank",
-    description="Update bank amount with how many chips are remaining",
-)
+@ledger.command(name="updatebank", description="Update bank amount with how many chips are remaining")
 async def updatebank(ctx, amount: int, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
+    if member is None:
+        member = ctx.author
 
-    # Check if the player with the given name already exists
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
+    ident = str(member.id)
+    name = member.display_name
+
+    async with ledger_data.lock:
+        ledger_data.append({
+            "u_from": ident,
+            "u_to": "pot",
+            "amount": amount,
+            "t": time()
+        })
 
     color = discord.Colour.green()
 
-    new_amount = data[name]["bank"] + amount
+    new_amount = await ledger_data.player_balance(ident)
 
     message = f"Updated Player **{name}'s** bank account!\n"
 
@@ -260,11 +255,6 @@ async def updatebank(ctx, amount: int, member: discord.Member = None):
     else:
         message += f"Bank Account Total: ${new_amount}\n"
 
-    data[name]["bank"] = new_amount
-    data[name]["bank_history"].append(new_amount)
-
-    await update_player_data(ctx, data)
-
     embed = discord.Embed(
         title=f"Updating Bank Account",
         description=message,
@@ -273,230 +263,6 @@ async def updatebank(ctx, amount: int, member: discord.Member = None):
 
     await ctx.respond(embed=embed)
 
-
-@misc.command(name="addwin", description="Add a win to yourself or another player")
-async def addwin(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
-
-    # Check if the player with the given name already exists
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    update_wins = data[name]["hands_won"] + 1
-    data[name]["hands_won"] = update_wins
-
-    await update_player_data(ctx, data)
-
-    embed = discord.Embed(
-        title=f"Updating Win",
-        description=(
-            f"*Added* one win to Player **{name}**!\n" f"Total Win(s): {update_wins}\n"
-        ),
-        colour=discord.Colour.green(),
-    )
-
-    await ctx.respond(embed=embed)
-
-
-@misc.command(
-    name="removewin", description="Remove a win from yourself or another player"
-)
-async def removewin(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
-
-    # Check if the player with the given name already exists
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    # Check if hands_won = 0 because we cannot go negative
-    if data[name]["hands_won"] <= 0:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player **{name}** did not win anything :(\n"
-            f"Cannot remove from 0 wins",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    update_wins = data[name]["hands_won"] - 1
-    data[name]["hands_won"] = update_wins
-
-    await update_player_data(ctx, data)
-
-    embed = discord.Embed(
-        title=f"Updating Win",
-        description=(
-            f"*Removed* one win from Player **{name}**!\n"
-            f"Total Win(s): {update_wins}\n"
-        ),
-        colour=discord.Colour.red(),
-    )
-
-    await ctx.respond(embed=embed)
-
-
-@misc.command(name="addloss", description="Add a loss to yourself or another player")
-async def addloss(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
-
-    # Check if the player with the given name already exists
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    update_loss = data[name]["hands_lost"] + 1
-    data[name]["hands_lost"] = update_loss
-
-    await update_player_data(ctx, data)
-
-    embed = discord.Embed(
-        title=f"Updating Loss",
-        description=(
-            f"*Added* one loss to Player **{name}**!\n"
-            f"Total Loss(es): {update_loss}\n"
-        ),
-        colour=discord.Colour.red(),
-    )
-
-    await ctx.respond(embed=embed)
-
-
-@misc.command(
-    name="removeloss", description="Remove a loss from yourself or another player"
-)
-async def removeloss(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
-
-    # Check if the player with the given name already exists
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    # Check if player has more than 0 losses in order to remove one
-    if data[name]["hands_lost"] <= 0:
-        embed = discord.Embed(
-            title="Error!",
-            description=(
-                f"Player **{name}** did not lose anything... yet\n"
-                f"Cannot remove from 0 losses"
-            ),
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    update_loss = data[name]["hands_lost"] - 1
-    data[name]["hands_lost"] = update_loss
-
-    await update_player_data(ctx, data)
-
-    embed = discord.Embed(
-        title=f"Updating Loss",
-        description=(
-            f"*Removed* one loss from Player **{name}**!\n"
-            f"Total Loss(es): {update_loss}\n"
-        ),
-        colour=discord.Colour.green(),
-    )
-
-    await ctx.respond(embed=embed)
-
-
-@misc.command(name="addfold", description="Add a fold to yourself or another player")
-async def addfold(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
-
-    # Check if the player with the given name already exists
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    update_folds = data[name]["folds"] + 1
-    data[name]["folds"] = update_folds
-
-    await update_player_data(ctx, data)
-
-    embed = discord.Embed(
-        title=f"Updating Folds",
-        description=(
-            f"*Added* one fold to Player **{name}**!\n"
-            f"Total Fold(s): {update_folds}\n"
-        ),
-        colour=discord.Colour.dark_gray(),
-    )
-
-    await ctx.respond(embed=embed)
-
-
-@misc.command(
-    name="removefold", description="Remove a fold from yourself or another player"
-)
-async def removefold(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
-
-    # Check if the player with the given name already exists
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    # Check if player has more than 0 losses in order to remove one
-    if data[name]["folds"] <= 0:
-        embed = discord.Embed(
-            title="Error!",
-            description=(
-                f"Player **{name}** did not fold yet (idk how)\n"
-                f"Cannot remove from 0 folds"
-            ),
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    update_folds = data[name]["folds"] - 1
-    data[name]["folds"] = update_folds
-
-    await update_player_data(ctx, data)
-
-    embed = discord.Embed(
-        title=f"Updating Folds",
-        description=(
-            f"*Removed* one fold from Player **{name}**!\n"
-            f"Total Fold(s): {update_folds}\n"
-        ),
-        colour=discord.Colour.dark_gray(),
-    )
-
-    await ctx.respond(embed=embed)
 
 
 """
@@ -508,34 +274,25 @@ DISPLAY COMMAND FUNCTIONS
     name="individual_stats", description="Get your or another player's Poker stats"
 )
 async def individ_stats(ctx, member: discord.Member = None):
-    name = await get_username(ctx, member)
-    data = await get_player_data(ctx)
+    if member is None:
+        member = ctx.author
+    
+    ident = str(member.id)
+    name = member.display_name
 
-    # Check if the player with the given name does not exist
-    if name not in data:
-        embed = discord.Embed(
-            title="Error!",
-            description=f"Player with username **{name}** is not in Ledger System.",
-            color=discord.Colour.dark_red(),
-        )
-        return await ctx.respond(embed=embed)
-
-    user_stats = data[name]
     stats_message = (
         f"Player **{name}**\n\n"
-        f"Hands Won: {user_stats['hands_won']}\n"
-        f"Hands Lost: {user_stats['hands_lost']}\n"
-        f"Folds: {user_stats['folds']}\n"
     )
 
     color = discord.Colour.blue()
 
-    if user_stats["bank"] < 0:
-        stats_message += f"Bank Account Total: -${-user_stats['bank']}\n\n"
+    balance = await ledger_data.player_balance(ident)
+    if balance < 0:
+        stats_message += f"Bank Account Total: -${-balance}\n\n"
         stats_message += f"Player is in **debt** :("
         color = discord.Colour.red()
     else:
-        stats_message += f"Bank Account Total: ${user_stats['bank']}\n"
+        stats_message += f"Bank Account Total: ${balance}\n"
 
     embed = discord.Embed(
         title="Statistics",
@@ -545,7 +302,7 @@ async def individ_stats(ctx, member: discord.Member = None):
 
     try:
         # Create the bank balance graph for the specified player
-        image_stream = await create_player_bank_graph(name, user_stats["bank_history"])
+        image_stream = await create_player_bank_graph(name)
 
         # Send the graph to Discord
         file = discord.File(image_stream, filename=f"{name}_bank_graph.png")
@@ -562,51 +319,26 @@ async def individ_stats(ctx, member: discord.Member = None):
     description="Current Poker Leaderboard",
 )
 async def leaderboard(ctx):
-    data = await get_player_data(ctx)
+    player_bals = {ledger_data.player_balance(ident) for ident in await ledger_data.unique_players()}
 
-    sorted_players = []
-
-    print(data.items())
-
-    # Find the maximum length among all arrays
-    max_length = max(len(data[player]["bank_history"]) for player in data)
-
-    update_data = False
-
-    # for player in player_data:
-    #     print("bank history: ", player_data[player]["bank_history"])
-    #     ax.plot(player_data[player]["bank_history"], label=player)
-
-    # Append the last element of each array until it reaches the max length
-    for player in data:
-        while len(data[player]["bank_history"]) < max_length:
-            update_data = True
-            data[player]["bank_history"].append(data[player]["bank_history"][-1])
-
-    if update_data:
-        await update_player_data(ctx, data)
-
-    # Update rounds not played for mismatched bank history array size
-    for username, player in data.items():
-        username, player["bank_history"]
-
-    player_bank = [(username, player["bank"]) for username, player in data.items()]
-
-    # Sort the list based on ratios in descending order
-    sorted_players = sorted(player_bank, key=lambda x: x[1], reverse=True)
+    sorted_players = sorted(player_bals.items(), key=lambda x: x[1], reverse=True)
 
     message = ""
 
     # Iterate through all players
     for rank, (username, value) in enumerate(sorted_players, start=1):
-        message += f"""{rank}. **{username}**"""
+        message += f"{rank}. **{username}**"
 
+        # if value < 0:
+        #     message += f"""
+        # Bank Balance: -${-round(value, 2)}\n"""
+        # else:
+        #     message += f"""
+        # Bank Balance: ${round(value, 2)}\n"""
         if value < 0:
-            message += f"""
-        Bank Balance: -${-round(value, 2)}\n"""
+            message += f"-${-value}\n"
         else:
-            message += f"""
-        Bank Balance: ${round(value, 2)}\n"""
+            message += f"${value}\n"
 
     title = f"Leaderboard: Bank Balance"
 
@@ -618,11 +350,10 @@ async def leaderboard(ctx):
 
     try:
         # Create the bank balance graph for the specified player
-        image_stream = await create_leaderboard_graph(data)
+        image_stream = await create_leaderboard_graph()
 
         # Send the graph to Discord
         file = discord.File(image_stream, filename=f"leaderboard_bank_graph.png")
-        # await ctx.respond(file=file)
 
     except ValueError as e:
         await ctx.respond(str(e))
