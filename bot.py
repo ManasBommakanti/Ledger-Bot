@@ -15,7 +15,7 @@ from datetime import datetime
 
 from ledger import *
 
-ledger_data = PersistentLedger("secrets/nledger.json", [])
+ledger_data = PersistentLedger("secrets/nledger.json")
 
 description = """
     Bot to store poker ledgers for poker game nights.
