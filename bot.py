@@ -44,14 +44,23 @@ def money_fmt(amount: int) -> str:
     else:
         return f"${amount}"
 
+async def disp_name(ident) -> str:
+    try:
+        user = await bot.fetch_user(ident)
+        name = user.display_name if user else ident
+    except Exception as e:
+        name = ident
+
+    return name
+
+
 # Function to create a bank balance graph for a specific player
 async def create_player_bank_graph(ledger_data: PersistentLedger, ident: str):
     running_balance = 0
     timestamps = []
     balances = []
 
-    user = await bot.fetch_user(ident)
-    name = user.display_name if user else ident
+    name = await disp_name(ident)
 
     async with ledger_data.lock:
         for entry in ledger_data.data:
@@ -108,7 +117,9 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
                 timestamps.append(datetime.fromtimestamp(entry["t"]))
 
     for player in players:
-        ax.plot(timestamps, balances[player], label=player)
+        if player == "pot" or player == "U.S. Federal Reserve":
+            continue
+        ax.plot(timestamps, balances[player], label=await disp_name(player))
 
     ax.set_xlabel("Round")
     ax.set_ylabel("Bank Balance")
@@ -183,8 +194,8 @@ async def updatebank(ctx, amount: int, member: discord.Member = None):
 
     async with ledger_data.lock:
         ledger_data.append({
-            "u_from": ident,
-            "u_to": "pot",
+            "u_from": "pot",
+            "u_to": ident,
             "amount": amount,
             "t": time()
         })
@@ -247,7 +258,7 @@ async def individ_stats(ctx, member: discord.Member = None):
 
     try:
         # Create the bank balance graph for the specified player
-        image_stream = await create_player_bank_graph(name)
+        image_stream = await create_player_bank_graph(ledger_data, ident)
 
         # Send the graph to Discord
         file = discord.File(image_stream, filename=f"{name}_bank_graph.png")
@@ -264,7 +275,7 @@ async def individ_stats(ctx, member: discord.Member = None):
     description="Current Poker Leaderboard",
 )
 async def leaderboard(ctx):
-    player_bals = {ledger_data.player_balance(ident) for ident in await ledger_data.unique_players()}
+    player_bals = {ident: await ledger_data.player_balance(ident) for ident in await ledger_data.unique_players()}
 
     sorted_players = sorted(player_bals.items(), key=lambda x: x[1], reverse=True)
 
@@ -272,7 +283,8 @@ async def leaderboard(ctx):
 
     # Iterate through all players
     for rank, (username, value) in enumerate(sorted_players, start=1):
-        message += f"{rank}. **{username}**"
+        username = await disp_name(username)
+        message += f"{rank}. **{username}**: "
 
         if value < 0:
             message += f"-${-value}\n"
@@ -289,7 +301,7 @@ async def leaderboard(ctx):
 
     try:
         # Create the bank balance graph for the specified player
-        image_stream = await create_leaderboard_graph()
+        image_stream = await create_leaderboard_graph(ledger_data)
 
         # Send the graph to Discord
         file = discord.File(image_stream, filename=f"leaderboard_bank_graph.png")
@@ -298,6 +310,38 @@ async def leaderboard(ctx):
         await ctx.respond(str(e))
 
     await ctx.respond(file=file, embed=embed)
+
+@ledger.command(name="mint", description="create new money out of thin air")
+async def mint(ctx, amount: int, member: discord.Member = None):
+    if member is None:
+        member = ctx.author
+
+    ident = str(member.id)
+    name = member.display_name
+
+    async with ledger_data.lock:
+        ledger_data.append({
+            "u_from": "U.S. Federal Reserve",
+            "u_to": ident,
+            "amount": amount,
+            "t": time()
+        })
+
+    balance = await ledger_data.player_balance(ident)
+
+    message = f"Updated Player **{name}'s** bank account!\n"
+
+    color = discord.Colour.green()
+
+    message += f"Bank Account Total: {money_fmt(balance)}\n"
+
+    embed = discord.Embed(
+        title=f"Updating Bank Account",
+        description=message,
+        colour=color,
+    )
+
+    await ctx.respond(embed=embed)
 
 
 @ledger.command(name="hands", description="Ranks of Hands in Texas Holdem Poker")
