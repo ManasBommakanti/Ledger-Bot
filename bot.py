@@ -117,6 +117,8 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
                 timestamps.append(datetime.fromtimestamp(entry["t"]))
 
     for player in players:
+        if player == "pot" or player == "U.S. Federal Reserve":
+            continue
         ax.plot(timestamps, balances[player], label=await disp_name(player))
 
     ax.set_xlabel("Round")
@@ -308,6 +310,38 @@ async def leaderboard(ctx):
         await ctx.respond(str(e))
 
     await ctx.respond(file=file, embed=embed)
+
+@ledger.command(name="mint", description="create new money out of thin air")
+async def mint(ctx, amount: int, member: discord.Member = None):
+    if member is None:
+        member = ctx.author
+
+    ident = str(member.id)
+    name = member.display_name
+
+    async with ledger_data.lock:
+        ledger_data.append({
+            "u_from": "U.S. Federal Reserve",
+            "u_to": ident,
+            "amount": amount,
+            "t": time()
+        })
+
+    balance = await ledger_data.player_balance(ident)
+
+    message = f"Updated Player **{name}'s** bank account!\n"
+
+    color = discord.Colour.green()
+
+    message += f"Bank Account Total: {money_fmt(balance)}\n"
+
+    embed = discord.Embed(
+        title=f"Updating Bank Account",
+        description=message,
+        colour=color,
+    )
+
+    await ctx.respond(embed=embed)
 
 
 @ledger.command(name="hands", description="Ranks of Hands in Texas Holdem Poker")

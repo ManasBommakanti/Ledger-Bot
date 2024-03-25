@@ -48,8 +48,6 @@ class PersistentLedger:
                 players.add(entry["u_from"])
                 players.add(entry["u_to"])
 
-        players.remove("")
-
         return players
 
     def append(self, entry: LedgerEntry):
