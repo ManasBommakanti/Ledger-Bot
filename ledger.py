@@ -40,13 +40,15 @@ class PersistentLedger:
             pos = sum(e["amount"] for e in self.data if e["u_to"] == ident)
 
         return pos - neg
-    
+
     async def unique_players(self):
         async with self.lock:
             players = set()
             for entry in self.data:
                 players.add(entry["u_from"])
                 players.add(entry["u_to"])
+
+        players.remove("")
 
         return players
 
