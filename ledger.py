@@ -2,11 +2,15 @@ import asyncio
 from typing import TypedDict
 import json
 
+from time import time
+
+
 class LedgerEntry(TypedDict):
     u_from: str
     u_to: str
     amount: int
     t: float
+
 
 class PersistentLedger:
     def __init__(self, fname: str):
@@ -18,6 +22,8 @@ class PersistentLedger:
 
     def load(self):
         out = []
+        pot_entry = {"u_from": "pot", "u_to": "pot", "amount": 0, "t": time()}
+        out.append(pot_entry)
 
         try:
             with open(self.fname, "r") as f:

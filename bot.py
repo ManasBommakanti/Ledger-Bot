@@ -343,6 +343,26 @@ async def mint(ctx, amount: int, member: discord.Member = None):
     name = member.display_name
 
     async with ledger_data.lock:
+        total_minted = sum(
+            transaction["amount"]
+            for transaction in ledger_data.data
+            if transaction["u_from"] == "U.S. Federal Reserve"
+            and transaction["u_to"] == ident
+        )
+        if amount > 800 - total_minted:
+            message = f"Player **{name}'s** already money minted!\n"
+            color = discord.Colour.red()
+
+            embed = discord.Embed(
+                title=f"No. You are not a money-minter.",
+                description=message,
+                colour=color,
+            )
+
+            await ctx.respond(embed=embed)
+
+            return
+
         ledger_data.append(
             {
                 "u_from": "U.S. Federal Reserve",
