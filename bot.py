@@ -158,8 +158,8 @@ async def on_ready():
 
 @ledger.command(name="buyin", description="Buy in, default $200")
 async def buyin(ctx, member: discord.Member = None, amount: int = 200):
-    if member is None:
-        member = ctx.author
+
+    member = member or ctx.author
 
     ident = str(member.id)
     name = member.display_name
@@ -190,6 +190,7 @@ async def buyin(ctx, member: discord.Member = None, amount: int = 200):
     name="updatebank",
     description="Update bank amount with how many chips are remaining",
 )
+
 async def updatebank(ctx, amount: int, member: discord.Member = None):
     if member is None:
         member = ctx.author
@@ -246,6 +247,26 @@ async def updatebank(ctx, amount: int, member: discord.Member = None):
 DISPLAY COMMAND FUNCTIONS
 """
 
+@ledger.command(
+    name="help", description="Get help on how to use the ledger commands"
+)
+async def help(ctx):
+    message = """
+    **/ledger buyin** - Buy into the game, default $200
+    **/ledger updatebank** - Update bank amount with how many chips are remaining
+    **/ledger individual_stats** - Get your or another player's Poker stats
+    **/ledger leaderboard** - Current Poker Leaderboard
+    **/ledger mint** - create new money out of thin air
+    **/ledger hands** - Ranks of Hands in Texas Holdem Poker
+    """
+
+    embed = discord.Embed(
+        title="Ledger Commands",
+        description=message,
+        colour=discord.Colour.blue(),
+    )
+
+    await ctx.respond(embed=embed)
 
 @ledger.command(
     name="individual_stats", description="Get your or another player's Poker stats"
