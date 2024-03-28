@@ -74,6 +74,10 @@ async def create_player_bank_graph(ledger_data: PersistentLedger, ident: str):
             timestamps.append(datetime.fromtimestamp(entry["t"]))
             balances.append(running_balance)
 
+
+    # for timestamps, remove the minutes, hours and year
+    timestamps = [timestamp.strftime("%m-%d") for timestamp in timestamps]
+
     fig, ax = plt.subplots()
     ax.plot(timestamps, balances, label=name)
 
