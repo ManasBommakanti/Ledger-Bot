@@ -100,7 +100,7 @@ async def create_player_bank_graph(ledger_data: PersistentLedger, ident: str):
 
 
 # Function to create a bank balance graph for a specific player
-async def create_leaderboard_graph(ledger_data: PersistentLedger, sorted_players):
+async def create_leaderboard_graph(ledger_data: PersistentLedger):
     fig, ax = plt.subplots()
 
     players = await ledger_data.unique_players()
@@ -131,20 +131,24 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger, sorted_players
     ax.set_title(f"Bank Balance History")
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
 
-    legend_data = {}
-    for line in ax.get_lines():
-        label = line.get_label()
-        legend_data[label] = line.get_color()
-
-    embed = discord.Embed(title="Bank Balance History", color=0x00FF00)
-    for player, color in legend_data.items():
-        embed.add_field(name=await disp_name(player), value="", inline=True)
-    embed.set_footer(text="Legend")
-
     fig.set_facecolor("#2596be")
 
-    # Force x-axis ticks to be integers
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    # Shrink current axis by 20%
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.7, box.height])
+
+    # Put a legend to the right of the current axis
+    ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+
+    fig_width, _ = plt.gcf().get_size_inches()
+
+    # Get transformed x-tick labels
+    unique_dates = set(tick.get_text() for tick in plt.gca().get_xticklabels())
+
+    # Force there to be only the minimum of unique dates or the width of current figure
+    ax.xaxis.set_major_locator(
+        ticker.MaxNLocator(min(len(unique_dates), int(fig_width)))
+    )
 
     # Save the plot to a BytesIO object
     image_stream = io.BytesIO()
@@ -154,7 +158,7 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger, sorted_players
     # Clear the plot for the next use
     plt.clf()
 
-    return image_stream, embed
+    return image_stream
 
 
 """
@@ -361,19 +365,15 @@ async def leaderboard(ctx):
     )
 
     try:
-        # Create the bank balance graph for the specified player
-        image_stream, embed = await create_leaderboard_graph(
-            ledger_data, sorted_players
-        )
+        # Create the bank balance graph
+        image_stream = await create_leaderboard_graph(ledger_data)
 
-        # Send the graph to Discord
-        file = discord.File(image_stream, filename=f"leaderboard_bank_graph.png")
-
+        # Send the graphs to Discord
+        file_graph = discord.File(image_stream, filename=f"leaderboard_bank_graph.png")
     except ValueError as e:
         await ctx.respond(str(e))
 
-    await ctx.respond(file=file, embed=embed)
-    # await ctx.respond(embed=embed)
+    await ctx.respond(file=file_graph, embed=embed)
 
 
 @ledger.command(name="mint", description="create new money out of thin air")
