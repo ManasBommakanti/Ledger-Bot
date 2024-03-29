@@ -9,6 +9,7 @@ import asyncio
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.dates as mdates
 
 from time import time
 from datetime import datetime
@@ -74,15 +75,13 @@ async def create_player_bank_graph(ledger_data: PersistentLedger, ident: str):
             timestamps.append(datetime.fromtimestamp(entry["t"]))
             balances.append(running_balance)
 
-    # for timestamps, remove the minutes, hours and year
-    timestamps = [timestamp.strftime("%m-%d") for timestamp in timestamps]
-
     fig, ax = plt.subplots()
     ax.plot(timestamps, balances, label=name)
 
     ax.set_xlabel("Round")
     ax.set_ylabel("Bank Balance")
     ax.set_title(f"{name}'s Bank Balance History")
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
 
     fig.set_facecolor("#2596be")
 
@@ -122,9 +121,6 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
 
                 timestamps.append(datetime.fromtimestamp(entry["t"]))
 
-    # for timestamps, remove the minutes, hours and year
-    timestamps = [timestamp.strftime("%m-%d") for timestamp in timestamps]
-
     for player in players:
         if player == "pot" or player == "U.S. Federal Reserve":
             continue
@@ -133,6 +129,7 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
     ax.set_xlabel("Round")
     ax.set_ylabel("Bank Balance")
     ax.set_title(f"Bank Balance History")
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
     ax.legend()
 
     fig.set_facecolor("#2596be")
@@ -320,10 +317,17 @@ async def individ_stats(ctx, member: discord.Member = None):
     description="Current Poker Leaderboard",
 )
 async def leaderboard(ctx):
-    player_bals = {
-        ident: await ledger_data.player_balance(ident)
-        for ident in await ledger_data.unique_players()
-    }
+    await ctx.defer()
+
+    player_bals = {}
+    async with ledger_data.lock:
+        for entry in ledger_data.data:
+            player_bals[entry["u_from"]] = player_bals.get(
+                entry["u_from"], 0
+            ) - entry["amount"]
+            player_bals[entry["u_to"]] = player_bals.get(
+                entry["u_to"], 0
+            ) + entry["amount"]
 
     sorted_players = sorted(player_bals.items(), key=lambda x: x[1], reverse=True)
 
@@ -358,6 +362,7 @@ async def leaderboard(ctx):
         await ctx.respond(str(e))
 
     await ctx.respond(file=file, embed=embed)
+    # await ctx.respond(embed=embed)
 
 
 @ledger.command(name="mint", description="create new money out of thin air")
