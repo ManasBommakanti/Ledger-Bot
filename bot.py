@@ -130,12 +130,25 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
     ax.set_ylabel("Bank Balance")
     ax.set_title(f"Bank Balance History")
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
-    ax.legend()
 
     fig.set_facecolor("#2596be")
 
-    # Force x-axis ticks to be integers
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    # Shrink current axis by 20%
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.7, box.height])
+
+    # Put a legend to the right of the current axis
+    ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+
+    fig_width, _ = plt.gcf().get_size_inches()
+
+    # Get transformed x-tick labels
+    unique_dates = set(tick.get_text() for tick in plt.gca().get_xticklabels())
+
+    # Force there to be only the minimum of unique dates or the width of current figure
+    ax.xaxis.set_major_locator(
+        ticker.MaxNLocator(min(len(unique_dates), int(fig_width)))
+    )
 
     # Save the plot to a BytesIO object
     image_stream = io.BytesIO()
@@ -322,12 +335,12 @@ async def leaderboard(ctx):
     player_bals = {}
     async with ledger_data.lock:
         for entry in ledger_data.data:
-            player_bals[entry["u_from"]] = player_bals.get(
-                entry["u_from"], 0
-            ) - entry["amount"]
-            player_bals[entry["u_to"]] = player_bals.get(
-                entry["u_to"], 0
-            ) + entry["amount"]
+            player_bals[entry["u_from"]] = (
+                player_bals.get(entry["u_from"], 0) - entry["amount"]
+            )
+            player_bals[entry["u_to"]] = (
+                player_bals.get(entry["u_to"], 0) + entry["amount"]
+            )
 
     sorted_players = sorted(player_bals.items(), key=lambda x: x[1], reverse=True)
 
@@ -352,17 +365,15 @@ async def leaderboard(ctx):
     )
 
     try:
-        # Create the bank balance graph for the specified player
+        # Create the bank balance graph
         image_stream = await create_leaderboard_graph(ledger_data)
 
-        # Send the graph to Discord
-        file = discord.File(image_stream, filename=f"leaderboard_bank_graph.png")
-
+        # Send the graphs to Discord
+        file_graph = discord.File(image_stream, filename=f"leaderboard_bank_graph.png")
     except ValueError as e:
         await ctx.respond(str(e))
 
-    await ctx.respond(file=file, embed=embed)
-    # await ctx.respond(embed=embed)
+    await ctx.respond(file=file_graph, embed=embed)
 
 
 @ledger.command(name="mint", description="create new money out of thin air")
