@@ -100,7 +100,7 @@ async def create_player_bank_graph(ledger_data: PersistentLedger, ident: str):
 
 
 # Function to create a bank balance graph for a specific player
-async def create_leaderboard_graph(ledger_data: PersistentLedger):
+async def create_leaderboard_graph(ledger_data: PersistentLedger, sorted_players):
     fig, ax = plt.subplots()
 
     players = await ledger_data.unique_players()
@@ -130,7 +130,16 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
     ax.set_ylabel("Bank Balance")
     ax.set_title(f"Bank Balance History")
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
-    ax.legend()
+
+    legend_data = {}
+    for line in ax.get_lines():
+        label = line.get_label()
+        legend_data[label] = line.get_color()
+
+    embed = discord.Embed(title="Bank Balance History", color=0x00FF00)
+    for player, color in legend_data.items():
+        embed.add_field(name=await disp_name(player), value="", inline=True)
+    embed.set_footer(text="Legend")
 
     fig.set_facecolor("#2596be")
 
@@ -145,7 +154,7 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
     # Clear the plot for the next use
     plt.clf()
 
-    return image_stream
+    return image_stream, embed
 
 
 """
@@ -322,12 +331,12 @@ async def leaderboard(ctx):
     player_bals = {}
     async with ledger_data.lock:
         for entry in ledger_data.data:
-            player_bals[entry["u_from"]] = player_bals.get(
-                entry["u_from"], 0
-            ) - entry["amount"]
-            player_bals[entry["u_to"]] = player_bals.get(
-                entry["u_to"], 0
-            ) + entry["amount"]
+            player_bals[entry["u_from"]] = (
+                player_bals.get(entry["u_from"], 0) - entry["amount"]
+            )
+            player_bals[entry["u_to"]] = (
+                player_bals.get(entry["u_to"], 0) + entry["amount"]
+            )
 
     sorted_players = sorted(player_bals.items(), key=lambda x: x[1], reverse=True)
 
@@ -353,7 +362,9 @@ async def leaderboard(ctx):
 
     try:
         # Create the bank balance graph for the specified player
-        image_stream = await create_leaderboard_graph(ledger_data)
+        image_stream, embed = await create_leaderboard_graph(
+            ledger_data, sorted_players
+        )
 
         # Send the graph to Discord
         file = discord.File(image_stream, filename=f"leaderboard_bank_graph.png")
