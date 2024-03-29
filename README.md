@@ -7,3 +7,5 @@ To start Virtual Environment:
 - `source bot-env/bin/activate`
 
 [Pretty Print Messages Resources](https://plainenglish.io/blog/python-discord-bots-formatting-text-efca0c5dc64a)
+
+test
