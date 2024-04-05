@@ -83,7 +83,7 @@ async def create_player_bank_graph(ledger_data: PersistentLedger, ident: str):
     ax.set_title(f"{name}'s Bank Balance History")
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
 
-    fig.set_facecolor("#2596be")
+    fig.set_facecolor("#518c51")
 
     # Force x-axis ticks to be integers
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
@@ -131,7 +131,7 @@ async def create_leaderboard_graph(ledger_data: PersistentLedger):
     ax.set_title(f"Bank Balance History")
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
 
-    fig.set_facecolor("#2596be")
+    fig.set_facecolor("#518c51")
 
     # Shrink current axis by 20%
     box = ax.get_position()
@@ -174,8 +174,19 @@ async def on_ready():
 
 @ledger.command(name="buyin", description="Buy in, default $200")
 async def buyin(ctx, member: discord.Member = None, amount: int = 200):
+    if member is None:
+        member = ctx.author
 
-    member = member or ctx.author
+    if amount < 200:
+        message = "Minimum buy-in is $200."
+        color = discord.Colour.red()
+        embed = discord.Embed(
+            title=f"C'mon, you can do more than that.",
+            description=message,
+            colour=color,
+        )
+        await ctx.respond(embed=embed)
+        return
 
     ident = str(member.id)
     name = member.display_name
