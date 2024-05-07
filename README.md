@@ -11,6 +11,7 @@ Hello! Here is what you need to do if you would like to improve the Ledger Bot.
 ### Requirements
 - Discord Account
 - Python3
+- pip
 
 ### Step 1 - Fork Repository and Set Up Structure
 
