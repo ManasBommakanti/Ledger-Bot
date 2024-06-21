@@ -1,0 +1,8 @@
+{
+    "DATABASE": {
+        "CASINO_DB_REL_PATH": "secrets/casino.db",
+        "SCHEMA_REL_PATH": "schema.sql",
+        "UPDATE_TABLES": "test.sql"
+    },
+    "BACKUP_LEDGER": "secrets/nledger.json"
+}
