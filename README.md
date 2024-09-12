@@ -25,7 +25,7 @@ First, fork this repository, following GitHub's instructions, into your own dire
 }
 ```
 
-### Step 3 - Getting Developer Token
+### Step 2 - Getting Developer Token
 
 Then, go to the [Discord Developer Portal](https://discord.com/developers/applications) and follow these steps:
 - Create a new bot application (button at the top-right of the screen) and name it whatever you would like
@@ -34,7 +34,7 @@ Then, go to the [Discord Developer Portal](https://discord.com/developers/applic
     - You might need to provide your GitHub credentials.
 - Copy the token and paste it into the `"TOKEN"` field of the `secrets/secrets.json` file
 
-### Step 4 - Setting up Virtual Environment
+### Step 3 - Setting up Virtual Environment
 
 Open up terminal and stay in the project root directory.
 - Create virtual environment:
@@ -50,7 +50,7 @@ source bot-env/bin/activate
 pip install -r requirements.txt
 ```
 
-### Step 5 - Adding Bot to Server
+### Step 4 - Adding Bot to Server
 Now, on Discord, create a Test Server of your own. Then, go back to the [Discord Developer Portal](https://discord.com/developers/applications) and follow these steps:
 - Go into your application
 - Go to the `Installation` tab
